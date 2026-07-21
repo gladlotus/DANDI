@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단디 — 3D 프린터 예상 견적 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-0:#080f1e;
+    --navy-1:#0d1630;
+    --navy-2:#121d3d;
+    --grid:rgba(120,170,255,.07);
+    --glass:rgba(255,255,255,.09);
+    --glass-hi:rgba(255,255,255,.14);
+    --stroke:rgba(255,255,255,.18);
+    --stroke-hi:rgba(255,255,255,.34);
+    --txt:#eef4ff;
+    --txt-dim:#a8b8d8;
+    --txt-mute:#7488ab;
+    --mint:#5eead4;
+    --cyan:#67e8f9;
+    --warn:#fbbf24;
+    --danger:#fb7185;
+    --r:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:'Gothic A1','Malgun Gothic',-apple-system,sans-serif;
+    color:var(--txt);
+    background:var(--navy-0);
+    min-height:100vh;
+    padding:clamp(20px,5vw,56px) 16px 72px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 청사진 그리드 + 남색 그라데이션 배경 */
+  body::before{
+    content:'';position:fixed;inset:0;z-index:-2;
+    background:
+      radial-gradient(1200px 680px at 50% -8%, #1c2d5c 0%, transparent 62%),
+      radial-gradient(900px 600px at 88% 108%, #16305e 0%, transparent 58%),
+      linear-gradient(170deg,var(--navy-1) 0%, var(--navy-0) 55%, #060b17 100%);
+  }
+  body::after{
+    content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+      linear-gradient(rgba(120,170,255,.16) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(120,170,255,.16) 1px,transparent 1px);
+    background-size:26px 26px,26px 26px,130px 130px,130px 130px;
+    mask-image:radial-gradient(circle at 50% 34%,#000 0%,rgba(0,0,0,.5) 62%,transparent 92%);
+    -webkit-mask-image:radial-gradient(circle at 50% 34%,#000 0%,rgba(0,0,0,.5) 62%,transparent 92%);
+  }
+  .wrap{max-width:768px;margin:0 auto}
+
+  /* ---------- 헤더 ---------- */
+  header{text-align:center;margin-bottom:30px}
+  .logo{
+    font-size:clamp(46px,12vw,74px);font-weight:800;letter-spacing:.14em;
+    background:linear-gradient(180deg,#fff 18%,var(--cyan) 128%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 60px rgba(103,232,249,.28);line-height:1.16;
+  }
+  .logo-rule{
+    width:60px;height:2px;margin:14px auto 16px;border-radius:2px;
+    background:linear-gradient(90deg,transparent,var(--mint),transparent);
+  }
+  .subtitle{font-size:clamp(15px,3.6vw,19px);color:var(--txt-dim);font-weight:500;letter-spacing:.02em}
+
+  /* ---------- 글래스 카드 ---------- */
+  .card{
+    background:var(--glass);
+    backdrop-filter:blur(12px) saturate(140%);
+    -webkit-backdrop-filter:blur(12px) saturate(140%);
+    border:1px solid var(--stroke);
+    border-radius:var(--r);
+    padding:clamp(18px,4.4vw,26px);
+    margin-bottom:18px;
+    text-align:left;
+    box-shadow:0 8px 32px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.09);
+  }
+
+  /* ---------- 아코디언 ---------- */
+  .acc{padding:0;overflow:hidden}
+  .acc-btn{
+    width:100%;background:none;border:0;cursor:pointer;color:var(--txt);
+    font-family:inherit;font-size:clamp(15px,3.5vw,17px);font-weight:700;
+    padding:19px clamp(18px,4.4vw,26px);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;
+    transition:background .18s;
+  }
+  .acc-btn:hover{background:rgba(255,255,255,.055)}
+  .acc-btn .chev{
+    flex:0 0 auto;width:11px;height:11px;border-right:2px solid var(--mint);border-bottom:2px solid var(--mint);
+    transform:rotate(45deg);transition:transform .3s ease;margin-bottom:4px;
+  }
+  .acc.open .acc-btn .chev{transform:rotate(-135deg);margin-bottom:0;margin-top:5px}
+  .acc-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s ease}
+  .acc.open .acc-body{grid-template-rows:1fr}
+  .acc-inner{overflow:hidden}
+  .acc-pad{padding:2px clamp(18px,4.4vw,26px) 24px}
+
+  .blk{margin-top:22px;padding-top:20px;border-top:1px dashed rgba(255,255,255,.14)}
+  .blk:first-child{margin-top:6px;padding-top:0;border-top:0}
+  .blk h4{
+    font-size:clamp(17px,4.2vw,20px);font-weight:800;color:var(--mint);
+    letter-spacing:-.01em;margin-bottom:12px;line-height:1.4;
+  }
+  .blk p{font-size:15px;color:var(--txt-dim);margin-bottom:7px}
+  .blk p:last-child{margin-bottom:0}
+  .blk .quote{
+    color:var(--cyan);font-weight:700;font-style:italic;
+    padding:9px 0 9px 14px;border-left:2px solid var(--cyan);margin:12px 0;
+  }
+  .plist{list-style:none;font-size:14.5px}
+  .plist li{
+    display:flex;justify-content:space-between;gap:16px;align-items:baseline;
+    padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07);color:var(--txt-dim);
+  }
+  .plist li:last-child{border-bottom:0}
+  .plist b{color:var(--txt);font-weight:700;text-align:right;flex:0 0 auto}
+  .plist .hl{color:var(--mint)}
+
+  /* ---------- 스텝 ---------- */
+  .step-head{display:flex;align-items:center;gap:11px;margin-bottom:17px}
+  .step-num{
+    flex:0 0 auto;width:27px;height:27px;border-radius:9px;
+    background:linear-gradient(145deg,var(--mint),var(--cyan));color:#062a30;
+    font-size:13.5px;font-weight:800;display:grid;place-items:center;
+    box-shadow:0 3px 12px rgba(94,234,212,.3);
+  }
+  .step-head h3{font-size:clamp(15px,3.6vw,17px);font-weight:700;letter-spacing:.01em}
+  /* 스텝 제목 오른쪽 안내 토글 */
+  .step-help{
+    margin-left:auto;flex:0 0 auto;background:none;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:inherit;font-size:12px;font-weight:700;color:var(--txt-mute);
+    padding:5px 9px;border-radius:8px;border:1px solid transparent;transition:.18s;white-space:nowrap;
+  }
+  .step-help:hover,.step-help:focus-visible,.step-help.open{
+    color:var(--mint);border-color:rgba(94,234,212,.38);background:rgba(94,234,212,.09);outline:0;
+  }
+  .step-help .chev{
+    flex:0 0 auto;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+    transform:rotate(45deg);transition:transform .3s ease;margin-bottom:3px;
+  }
+  .step-help.open .chev{transform:rotate(-135deg);margin-bottom:0;margin-top:4px}
+
+  /* ---------- 인라인 안내 패널 ---------- */
+  .help-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s ease}
+  .help-body.open{grid-template-rows:1fr}
+  .help-inner{overflow:hidden}
+  .help-pad{
+    margin-bottom:17px;padding:14px 16px;border-radius:13px;
+    background:rgba(0,0,0,.24);border:1px solid rgba(94,234,212,.22);
+  }
+  .help-title{font-size:13px;font-weight:800;color:var(--mint);margin-bottom:11px}
+  .help-list{list-style:none;display:grid;gap:11px}
+  .help-list li{
+    font-size:14px;color:var(--txt-dim);line-height:1.68;
+    padding-left:14px;border-left:2px solid rgba(94,234,212,.4);
+  }
+  .help-list li b{color:var(--txt);font-weight:700}
+  .help-list li .hl{color:var(--mint);font-weight:700}
+
+  /* 탭 */
+  .tabs{display:flex;gap:7px;margin-bottom:16px;background:rgba(0,0,0,.24);padding:5px;border-radius:13px}
+  .tab{
+    flex:1;padding:10px;border:0;border-radius:9px;background:none;cursor:pointer;
+    color:var(--txt-mute);font-family:inherit;font-size:13.5px;font-weight:700;transition:.2s;
+  }
+  .tab:hover{color:var(--txt-dim)}
+  .tab.on{background:var(--glass-hi);color:var(--txt);box-shadow:0 2px 10px rgba(0,0,0,.28)}
+
+  /* 드롭존 */
+  .drop{
+    border:2px dashed rgba(255,255,255,.24);border-radius:15px;
+    padding:36px 20px;text-align:center;cursor:pointer;transition:.22s;
+    background:rgba(255,255,255,.035);
+  }
+  .drop:hover,.drop.over{
+    border-color:var(--mint);background:rgba(94,234,212,.09);transform:translateY(-2px);
+  }
+  .drop .ico{font-size:36px;margin-bottom:9px;filter:grayscale(.15)}
+  .drop .t{font-size:14.5px;font-weight:700;margin-bottom:5px}
+  .drop .s{font-size:12.5px;color:var(--txt-mute)}
+  .drop.done{border-style:solid;border-color:rgba(94,234,212,.5);background:rgba(94,234,212,.08)}
+
+  /* 스캔 결과 */
+  .scan{margin-top:14px;padding:15px;border-radius:13px;background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.09)}
+  .scan .fname{
+    font-size:13px;font-weight:700;color:var(--mint);margin-bottom:11px;
+    display:flex;align-items:center;gap:7px;word-break:break-all;
+  }
+  .scan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .sc{background:rgba(255,255,255,.05);border-radius:9px;padding:10px 9px;text-align:center}
+  .sc .k{font-size:10.5px;color:var(--txt-mute);letter-spacing:.05em;margin-bottom:4px}
+  .sc .v{font-size:13px;font-weight:700;color:var(--txt)}
+
+  /* 수동 입력 */
+  .manual{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .fld label{display:block;font-size:12px;color:var(--txt-dim);font-weight:600;margin-bottom:7px}
+  .fld input{
+    width:100%;padding:12px 13px;border-radius:11px;font-family:inherit;font-size:15px;font-weight:600;
+    background:rgba(0,0,0,.3);border:1px solid var(--stroke);color:var(--txt);transition:.18s;
+  }
+  .fld input:focus{outline:0;border-color:var(--mint);box-shadow:0 0 0 3px rgba(94,234,212,.15)}
+  .fld input::placeholder{color:#5b6d8e;font-weight:400}
+  .hint{font-size:11.5px;color:var(--txt-mute);margin-top:11px;line-height:1.55}
+
+  /* 옵션 버튼 */
+  .opt-grp{margin-bottom:19px}
+  .opt-grp:last-child{margin-bottom:0}
+  .opt-lbl{font-size:12px;font-weight:700;color:var(--txt-dim);margin-bottom:9px;letter-spacing:.03em}
+  .opts{display:grid;gap:8px}
+  .opts.c2{grid-template-columns:1fr 1fr}
+  .opts.c3{grid-template-columns:repeat(3,1fr)}
+  .opt{
+    padding:12px 10px;border-radius:12px;cursor:pointer;text-align:center;
+    background:rgba(255,255,255,.05);border:1px solid var(--stroke);
+    color:var(--txt-dim);font-family:inherit;font-size:12.5px;font-weight:600;
+    transition:.19s;line-height:1.42;
+  }
+  .opt:hover{background:rgba(255,255,255,.1);border-color:var(--stroke-hi);color:var(--txt)}
+  .opt.on{
+    background:linear-gradient(145deg,rgba(94,234,212,.2),rgba(103,232,249,.13));
+    border-color:var(--mint);color:#fff;box-shadow:0 0 0 1px rgba(94,234,212,.4),0 4px 16px rgba(94,234,212,.16);
+  }
+  .opt .sub{display:block;font-size:10.5px;color:var(--txt-mute);margin-top:3px;font-weight:500}
+  .opt.on .sub{color:var(--mint)}
+
+  /* 결과 */
+  .ph{text-align:center;padding:34px 16px;color:var(--txt-mute)}
+  .ph .ico{font-size:33px;margin-bottom:11px;opacity:.55}
+  .ph p{font-size:13.5px}
+
+  .warn-box{
+    padding:20px;border-radius:14px;text-align:left;
+    background:rgba(251,113,133,.11);border:1px solid rgba(251,113,133,.42);
+  }
+  .warn-box .h{font-size:14.5px;font-weight:700;color:var(--danger);margin-bottom:8px}
+  .warn-box .m{font-size:13.5px;color:#ffd8de;line-height:1.68}
+  .warn-box .d{font-size:12px;color:var(--txt-mute);margin-top:11px;padding-top:11px;border-top:1px solid rgba(251,113,133,.22)}
+
+  .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:17px}
+  .sum-c{
+    background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.1);
+    border-radius:13px;padding:15px 10px;text-align:center;
+  }
+  .sum-c .k{font-size:10.5px;color:var(--txt-mute);margin-bottom:6px;letter-spacing:.03em}
+  .sum-c .v{font-size:clamp(15px,3.9vw,19px);font-weight:800;color:var(--txt)}
+  .sum-c.hero{
+    background:linear-gradient(150deg,rgba(94,234,212,.19),rgba(103,232,249,.09));
+    border-color:rgba(94,234,212,.46);
+  }
+  .sum-c.hero .v{color:var(--mint);text-shadow:0 0 22px rgba(94,234,212,.42)}
+
+  .bd{background:rgba(0,0,0,.22);border-radius:13px;padding:6px 15px;margin-bottom:14px}
+  .bd .row{
+    display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+    padding:11px 0;font-size:13.5px;color:var(--txt-dim);border-bottom:1px solid rgba(255,255,255,.07);
+  }
+  .bd .row:last-child{border-bottom:0}
+  .bd .row b{color:var(--txt);font-weight:700;flex:0 0 auto}
+  .bd .row .note{display:block;font-size:11px;color:var(--txt-mute);margin-top:2px}
+  .bd .row.disc{color:var(--mint)}
+  .bd .row.disc b{color:var(--mint)}
+  .bd .row.tot{border-top:1px solid rgba(255,255,255,.18);margin-top:3px;padding-top:14px}
+  .bd .row.tot span{font-size:14.5px;font-weight:700;color:var(--txt)}
+  .bd .row.tot b{font-size:21px;color:var(--mint);text-shadow:0 0 18px rgba(94,234,212,.34)}
+
+  .badges{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+  .badge{
+    font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:99px;
+    background:rgba(94,234,212,.14);border:1px solid rgba(94,234,212,.4);color:var(--mint);
+  }
+  .badge.gray{background:rgba(255,255,255,.07);border-color:var(--stroke);color:var(--txt-dim)}
+
+  .cta{
+    display:block;width:100%;padding:16px;border:0;border-radius:14px;cursor:pointer;
+    font-family:inherit;font-size:15.5px;font-weight:800;color:#06282e;
+    background:linear-gradient(135deg,var(--mint),var(--cyan));
+    box-shadow:0 6px 22px rgba(94,234,212,.28);transition:.2s;
+  }
+  .cta:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(94,234,212,.42)}
+  .cta:active{transform:translateY(0)}
+  .disclaim{font-size:11.5px;color:var(--txt-mute);text-align:center;margin-top:12px;line-height:1.62}
+
+  footer{text-align:center;margin-top:30px;font-size:11.5px;color:#5c6f92;line-height:1.85}
+
+  @media (max-width:520px){
+    .manual,.opts.c2,.opts.c3{grid-template-columns:1fr}
+    .sum,.scan-grid{grid-template-columns:1fr}
+    .sum-c{display:flex;align-items:center;justify-content:space-between;text-align:left;padding:13px 15px}
+    .sum-c .k{margin-bottom:0}
+    .scan-grid .sc{display:flex;align-items:center;justify-content:space-between;text-align:left}
+    .scan-grid .sc .k{margin-bottom:0}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">단디</div>
+    <div class="logo-rule"></div>
+    <p class="subtitle">3D 프린터 예상 견적 계산기</p>
+  </header>
+
+  <!-- 아코디언: '단디' 알아보기 -->
+  <section class="card acc" id="acc">
+    <button class="acc-btn" id="accBtn" aria-expanded="false" aria-controls="accBody">
+      <span>'단디' 알아보기</span><span class="chev" aria-hidden="true"></span>
+    </button>
+    <div class="acc-body" id="accBody"><div class="acc-inner"><div class="acc-pad">
+
+      <div class="blk">
+        <h4>'단디'란?</h4>
+        <p>'단국대 3D'의 줄임말이에요. 여기에 "확실하고 단단하게 도와드릴게요"라는 마음도 함께 담았습니다.</p>
+      </div>
+
+      <div class="blk">
+        <h4>브랜드 스토리</h4>
+        <p>주변에 업체도 없고 비싸서, 그저 상상만 했던 3D 프린팅.</p>
+        <p>요즘은 모형에 3D 프린트를 쓰는 학우들도 많아졌지만, 학생 용돈으로 개인 장비를 덜컥 사기엔 여전히 부담스럽죠.</p>
+        <p class="quote">"직접 써봐야 나한테 필요한지 알 수 있으니까!"</p>
+        <p>단디(DANDI)는 더 많은 건축학도들이 부담 없이 3D 프린팅을 경험해볼 수 있도록, 같은 학생의 마음으로 만든 교내 출력 대행 서비스입니다.</p>
+      </div>
+
+      <div class="blk">
+        <h4>가격 정책 &amp; 장비 스펙</h4>
+        <ul class="plist">
+          <li><span>기본 작업료</span><b>2,000원 <span style="color:var(--txt-mute);font-weight:500">(건당)</span></b></li>
+          <li><span>시간 공임비</span><b>첫 1시간 무료<br><span style="color:var(--txt-mute);font-weight:500;font-size:12px">이후 1시간당 1,000원</span></b></li>
+          <li><span>재료비</span><b>g당 50원</b></li>
+          <li><span>깎아드리는 부분</span><b class="hl">100원 미만은 무조건 내림</b></li>
+          <li><span>보유 장비</span><b>Bambu Lab A1<br><span style="color:var(--txt-mute);font-weight:500;font-size:12px">0.4mm 노즐 · 최대 256×256×256mm</span></b></li>
+        </ul>
+      </div>
+
+    </div></div></div>
+  </section>
+
+  <!-- STEP 1 -->
+  <section class="card">
+    <div class="step-head">
+      <div class="step-num">1</div><h3>모델 업로드</h3>
+      <button class="step-help" data-help="helpGuide" aria-expanded="false" aria-controls="helpGuide">
+        안내 보기<span class="chev" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="help-body" id="helpGuide"><div class="help-inner"><div class="help-pad">
+      <div class="help-title">📐 모델 업로드 안내</div>
+      <ul class="help-list">
+        <li><b>STL 파일</b>(바이너리 · ASCII 모두 지원)을 올려주시면 크기 · 부피 · 표면적을 자동으로 분석해 드려요.</li>
+        <li>출력 가능한 최대 크기는 <b>256 × 256 × 256mm</b>예요. 이걸 넘으면 견적이 나오지 않으니, 모델을 나눠서 올려주세요.</li>
+        <li>슬라이서에서 <b>시간과 무게를 이미 알고 계시다면</b>, <span class="hl">'직접 입력' 탭</span>에서 값을 바로 넣으셔도 됩니다.</li>
+      </ul>
+    </div></div></div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab on" id="tabFile" role="tab" aria-selected="true">📁 STL 파일 업로드</button>
+      <button class="tab" id="tabManual" role="tab" aria-selected="false">✏️ 직접 입력</button>
+    </div>
+
+    <div id="paneFile">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="STL 파일 업로드">
+        <div class="ico" aria-hidden="true">📐</div>
+        <div class="t">STL 파일을 여기에 끌어다 놓거나, 클릭해 주세요</div>
+        <div class="s">올려주시면 크기 · 부피 · 표면적을 자동으로 분석해 드려요</div>
+      </div>
+      <input type="file" id="file" accept=".stl" hidden>
+      <div class="scan" id="scan" hidden>
+        <div class="fname"><span aria-hidden="true">✓</span><span id="fname"></span></div>
+        <div class="scan-grid">
+          <div class="sc"><div class="k">크기 (X·Y·Z)</div><div class="v" id="mSize">—</div></div>
+          <div class="sc"><div class="k">부피</div><div class="v" id="mVol">—</div></div>
+          <div class="sc"><div class="k">표면적</div><div class="v" id="mArea">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="paneManual" hidden>
+      <div class="manual">
+        <div class="fld">
+          <label for="mMin">예상 출력 시간 (분)</label>
+          <input type="number" id="mMin" min="0" step="1" placeholder="예: 95">
+        </div>
+        <div class="fld">
+          <label for="mG">예상 재료 무게 (g)</label>
+          <input type="number" id="mG" min="0" step="0.1" placeholder="예: 48.2">
+        </div>
+      </div>
+      <p class="hint">Bambu Studio 같은 슬라이서에서 확인한 값을 넣어주시면 가장 정확해요. 직접 입력하실 땐 아래 품질 · 서포트 옵션은 견적에 반영되지 않습니다.</p>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="card">
+    <div class="step-head">
+      <div class="step-num">2</div><h3>조건 설정</h3>
+      <button class="step-help" data-help="helpSpec" aria-expanded="false" aria-controls="helpSpec">
+        스펙 보기<span class="chev" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="help-body" id="helpSpec"><div class="help-inner"><div class="help-pad">
+      <div class="help-title">⚙️ 재질 · 품질 스펙 안내</div>
+      <ul class="help-list">
+        <li><b>Basic / Matte White</b> — 기본 라인업 PLA예요. 추가 비용 없이 <span class="hl">g당 50원</span>.</li>
+        <li><b>지정 색상</b> — Black, Gray 등 별도 색상을 원하시면 세팅비 <span class="hl">+2,000원</span>이 고정으로 붙어요.</li>
+        <li><b>⚡ Draft (0.24mm)</b> — 가장 빠른 출력. 표면이 다소 거칠 수 있어요.</li>
+        <li><b>⚖️ Standard (0.20mm)</b> — 속도와 품질의 균형. <span class="hl">기본 권장</span> 옵션이에요.</li>
+        <li><b>✨ High Quality (0.16mm)</b> — 가장 정교한 표면. 대신 출력 시간이 늘어나요.</li>
+      </ul>
+    </div></div></div>
+
+    <div class="opt-grp">
+      <div class="opt-lbl">서포트 필요 여부</div>
+      <div class="opts c2" id="grpSup">
+        <button class="opt on" data-v="1">서포트 없음<span class="sub">일반 매스 / 지형</span></button>
+        <button class="opt" data-v="1.15">서포트 필요<span class="sub">공중 돌출 / 캔틸레버</span></button>
+      </div>
+    </div>
+
+    <div class="opt-grp">
+      <div class="opt-lbl">재질 / 컬러</div>
+      <div class="opts c3" id="grpMat">
+        <button class="opt on" data-v="0">Basic White<span class="sub">유광</span></button>
+        <button class="opt" data-v="0">Matte White<span class="sub">무광</span></button>
+        <button class="opt" data-v="2000">지정 색상<span class="sub">+2,000원</span></button>
+      </div>
+    </div>
+
+    <div class="opt-grp">
+      <div class="opt-lbl">출력 품질</div>
+      <div class="opts c3" id="grpQ">
+        <button class="opt" data-v="0.24">⚡ Draft<span class="sub">0.24mm</span></button>
+        <button class="opt on" data-v="0.20">⚖️ Standard<span class="sub">0.20mm</span></button>
+        <button class="opt" data-v="0.16">✨ High Quality<span class="sub">0.16mm</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="card">
+    <div class="step-head"><div class="step-num">3</div><h3>예상 견적 확인</h3></div>
+    <div id="result">
+      <div class="ph">
+        <div class="ico" aria-hidden="true">🧮</div>
+        <p>STL 파일을 올리거나 값을 직접 넣어주시면<br>예상 견적을 바로 계산해 드려요.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    단디(DANDI) · 단국대학교 건축학도를 위한 교내 3D 프린팅 출력 대행<br>
+    Bambu Lab A1 · 0.4mm Nozzle · PLA
+  </footer>
+</div>
+
+<script>
+'use strict';
+/* =========================================================================
+   단디 견적 엔진
+   실측 슬라이싱 데이터(Bambu Studio, 3케이스 × 3품질 = 9포인트)로 보정한 모델.
+   무게 = (상수 + 쉘계수·표면적 + 인필계수·부피) × 품질계수
+   시간 = (상수 + g계수·무게 + 레이어계수·레이어수) × 품질계수
+   검증 결과: 무게 평균오차 0.99%, 시간 평균오차 3.84%
+   ========================================================================= */
+const BED = 256;                 // 빌드 플레이트 한 축 최대 (mm)
+const FEE_BASE = 2000;           // 기본 작업료
+const FEE_HOUR = 1000;           // 초과 1시간당 공임
+const FEE_GRAM = 50;             // g당 재료비
+
+// 무게 모델 (0.20mm 기준 3케이스 정확히 통과)
+const W_CONST = 2.7946, W_SHELL = 0.06357, W_INFILL = 0.22011;
+const W_Q = { '0.24':1.005, '0.20':1.0, '0.16':1.032 };
+// 시간 모델 (0.20mm 기준 3케이스 정확히 통과) + 품질 배수
+const T_CONST = -4.213, T_GRAM = 1.8136, T_LAYER = 0.04731;
+const T_Q = { '0.24':0.942, '0.20':1.0, '0.16':1.707 };
+
+const S = { mode:'file', geo:null, sup:1, matFee:0, layer:'0.20', manMin:null, manG:null };
+
+/* ---------------- STL 파싱 (외부 라이브러리 없음) ---------------- */
+function parseSTL(buf){
+  const dv = new DataView(buf), len = buf.byteLength;
+  if (len < 84) throw new Error('파일이 너무 작거나 손상되었습니다.');
+  const nTri = dv.getUint32(80, true);
+  const tris = [];
+  if (84 + nTri * 50 === len) {                      // binary STL
+    for (let i = 0; i < nTri; i++) {
+      const o = 84 + i * 50 + 12, t = [];
+      for (let k = 0; k < 3; k++) {
+        const p = o + k * 12;
+        t.push([dv.getFloat32(p,true), dv.getFloat32(p+4,true), dv.getFloat32(p+8,true)]);
+      }
+      tris.push(t);
+    }
+  } else {                                            // ASCII STL
+    const txt = new TextDecoder().decode(new Uint8Array(buf));
+    const re = /vertex\s+(-?[\d.eE+-]+)\s+(-?[\d.eE+-]+)\s+(-?[\d.eE+-]+)/g;
+    const vs = []; let m;
+    while ((m = re.exec(txt))) vs.push([+m[1], +m[2], +m[3]]);
+    for (let i = 0; i + 2 < vs.length; i += 3) tris.push([vs[i], vs[i+1], vs[i+2]]);
+  }
+  if (!tris.length) throw new Error('유효한 삼각형 데이터를 찾을 수 없습니다.');
+
+  const mn = [Infinity,Infinity,Infinity], mx = [-Infinity,-Infinity,-Infinity];
+  let vol = 0, area = 0;
+  for (const [a,b,c] of tris) {
+    for (const v of [a,b,c]) for (let i=0;i<3;i++){
+      if (v[i] < mn[i]) mn[i] = v[i];
+      if (v[i] > mx[i]) mx[i] = v[i];
+    }
+    // 부호 있는 사면체 부피 합 (원점 기준)
+    vol += (a[0]*(b[1]*c[2]-b[2]*c[1]) - a[1]*(b[0]*c[2]-b[2]*c[0]) + a[2]*(b[0]*c[1]-b[1]*c[0])) / 6;
+    const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]], w=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
+    const cr=[u[1]*w[2]-u[2]*w[1], u[2]*w[0]-u[0]*w[2], u[0]*w[1]-u[1]*w[0]];
+    area += Math.hypot(cr[0],cr[1],cr[2]) / 2;
+  }
+  const size = [mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]];
+  if (!size.every(Number.isFinite)) throw new Error('좌표를 읽을 수 없습니다.');
+  return { size, volCm3: Math.abs(vol)/1000, areaCm2: area/100, tris: tris.length };
+}
+
+/* ---------------- 추정 ---------------- */
+function estimate(geo, layer, sup){
+  const q = String(layer);
+  let g = (W_CONST + W_SHELL*geo.areaCm2 + W_INFILL*geo.volCm3) * (W_Q[q] ?? 1);
+  g = Math.max(g, 0.5);
+  const layers = geo.size[2] / parseFloat(layer);
+  let min = (T_CONST + T_GRAM*g + T_LAYER*layers) * (T_Q[q] ?? 1);
+  min = Math.max(min, 5);                 // 상수항이 음수라 초소형 모델 하한 보정
+  return { g: g*sup, min: min*sup };      // 서포트 가중치 +15%
+}
+
+/* ---------------- 가격 ---------------- */
+function price(min, g, matFee){
+  const over = Math.max(0, min - 60);
+  const labor = Math.ceil(over/60) * FEE_HOUR;     // 첫 1시간 무료, 이후 올림
+  const mat = g * FEE_GRAM;
+  const raw = FEE_BASE + labor + mat + matFee;
+  const total = Math.floor(raw/100) * 100;         // 100원 미만 절사
+  return { labor, mat, raw, total, cut: raw - total, overH: Math.ceil(over/60) };
+}
+
+/* ---------------- 표시 유틸 ---------------- */
+const won = n => Math.round(n).toLocaleString('ko-KR') + '원';
+const hm  = m => { const t=Math.round(m), h=Math.floor(t/60), n=t%60; return h ? `${h}시간 ${n}분` : `${n}분`; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------------- 렌더 ---------------- */
+function render(){
+  const el = document.getElementById('result');
+
+  // 입력값 확보
+  let g, min, geo = null;
+  if (S.mode === 'file') {
+    if (!S.geo) return void (el.innerHTML =
+      `<div class="ph"><div class="ico" aria-hidden="true">🧮</div>
+       <p>STL 파일을 올려주시면<br>예상 견적을 바로 계산해 드려요.</p></div>`);
+    geo = S.geo;
+    // 빌드 플레이트 초과 검사
+    const over = geo.size.filter(v => v > BED);
+    if (over.length) {
+      const [x,y,z] = geo.size.map(v => v.toFixed(1));
+      el.innerHTML =
+        `<div class="warn-box">
+           <div class="h">⚠️ 출력 범위 초과</div>
+           <div class="m">모델이 프린터 출력 범위(한 축 256mm)를 넘었어요.
+             모델을 나눠서(Split) 다시 올려주시거나, 1:1 채팅으로 편하게 문의해 주세요!</div>
+           <div class="d">현재 모델: ${x} × ${y} × ${z} mm · 최대 출력 크기: 256 × 256 × 256 mm</div>
+         </div>`;
+      return;
+    }
+    const est = estimate(geo, S.layer, S.sup);
+    g = est.g; min = est.min;
+  } else {
+    min = S.manMin; g = S.manG;
+    if (!(min > 0) || !(g > 0)) return void (el.innerHTML =
+      `<div class="ph"><div class="ico" aria-hidden="true">✏️</div>
+       <p>예상 출력 시간(분)과 재료 무게(g)를<br>모두 넣어주세요.</p></div>`);
+  }
+
+  const p = price(min, g, S.matFee);
+
+  el.innerHTML =
+    `<div class="sum">
+       <div class="sum-c"><div class="k">📦 예상 재료량</div><div class="v">${g.toFixed(1)} g</div></div>
+       <div class="sum-c"><div class="k">⏱️ 예상 출력시간</div><div class="v">${hm(min)}</div></div>
+       <div class="sum-c hero"><div class="k">💰 최종 예상비용</div><div class="v">${won(p.total)}</div></div>
+     </div>
+
+     <div class="bd">
+       <div class="row"><span>기본 작업료<span class="note">건당 고정</span></span><b>${won(FEE_BASE)}</b></div>
+       <div class="row"><span>시간 공임비<span class="note">${
+         p.overH ? `첫 1시간 무료 · ${p.overH}시간 초과 × 1,000원` : '첫 1시간 무료 구간'
+       }</span></span><b>${won(p.labor)}</b></div>
+       <div class="row"><span>재료비<span class="note">${g.toFixed(1)}g × 50원</span></span><b>${won(p.mat)}</b></div>
+       ${S.matFee ? `<div class="row"><span>지정 색상 세팅비<span class="note">컬러 교체 고정 비용</span></span><b>${won(S.matFee)}</b></div>` : ''}
+       ${p.cut >= 1 ? `<div class="row disc"><span>십 원 단위 내림 혜택</span><b>-${won(p.cut)}</b></div>` : ''}
+       <div class="row tot"><span>최종 예상 견적</span><b>${won(p.total)}</b></div>
+     </div>
+
+     <div class="badges">
+       <span class="badge">✓ 십 원 단위 내림 혜택 적용됨</span>
+       ${S.mode === 'file' ? `<span class="badge gray">${
+         {'0.24':'⚡ 0.24mm Draft','0.20':'⚖️ 0.20mm Standard','0.16':'✨ 0.16mm High Quality'}[S.layer]
+       }</span>` : '<span class="badge gray">✏️ 직접 입력값 기준</span>'}
+       ${S.mode === 'file' && S.sup > 1 ? '<span class="badge gray">서포트 보정 +15%</span>' : ''}
+     </div>
+
+     <button class="cta" id="cta">💬 1:1 카카오톡 상담 / 주문하기</button>
+     <p class="disclaim">
+       위 금액은 STL 형상을 바탕으로 계산한 <b>예상 견적</b>이에요.<br>
+       실제 슬라이싱 결과에 따라 최종 금액은 조금 달라질 수 있어요.
+     </p>`;
+
+  document.getElementById('cta').addEventListener('click', () => {
+    alert('1:1 카카오톡 상담 채널을 연결해 주세요.\n\n(카카오톡 채널 URL을 index_DANDI.html의 CTA 핸들러에 입력하면 됩니다.)');
+  });
+}
+
+/* ---------------- 아코디언 / 안내 패널 ---------------- */
+// btn: 클릭 대상, panels: .open 클래스를 함께 토글할 요소들
+function bindToggle(btn, ...panels){
+  btn.addEventListener('click', () => {
+    const open = !panels[0].classList.contains('open');
+    panels.forEach(el => el.classList.toggle('open', open));
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+}
+// '단디' 알아보기 — 카드(.acc) 전체에 .open이 붙는 구조
+bindToggle(document.getElementById('accBtn'), document.getElementById('acc'));
+// STEP 안내 패널 — 패널과 버튼(셰브론 회전용)에 각각 .open
+document.querySelectorAll('.step-help').forEach(btn =>
+  bindToggle(btn, document.getElementById(btn.dataset.help), btn));
+
+/* ---------------- 탭 ---------------- */
+const tabFile = document.getElementById('tabFile'), tabManual = document.getElementById('tabManual');
+const paneFile = document.getElementById('paneFile'), paneManual = document.getElementById('paneManual');
+function setMode(mode){
+  S.mode = mode;
+  const f = mode === 'file';
+  tabFile.classList.toggle('on', f);   tabFile.setAttribute('aria-selected', f);
+  tabManual.classList.toggle('on', !f); tabManual.setAttribute('aria-selected', !f);
+  paneFile.hidden = !f; paneManual.hidden = f;
+  render();
+}
+tabFile.addEventListener('click', () => setMode('file'));
+tabManual.addEventListener('click', () => setMode('manual'));
+
+/* ---------------- 파일 업로드 ---------------- */
+const drop = document.getElementById('drop'), fileInput = document.getElementById('file');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+});
+['dragenter','dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(f); });
+
+function loadFile(f){
+  if (!/\.stl$/i.test(f.name)) { alert('STL 파일만 업로드할 수 있습니다.'); return; }
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const geo = parseSTL(fr.result);
+      S.geo = geo;
+      document.getElementById('fname').textContent = f.name;
+      document.getElementById('mSize').textContent =
+        geo.size.map(v => v.toFixed(1)).join(' × ') + ' mm';
+      document.getElementById('mVol').textContent  = geo.volCm3.toFixed(2) + ' cm³';
+      document.getElementById('mArea').textContent = geo.areaCm2.toFixed(2) + ' cm²';
+      document.getElementById('scan').hidden = false;
+      drop.classList.add('done');
+      drop.querySelector('.t').textContent = '다른 파일로 바꾸기';
+      drop.querySelector('.s').textContent = '클릭하거나 새 STL을 끌어다 놓으세요';
+      render();
+    } catch (err) {
+      alert('STL 파일을 읽는 중 오류가 발생했습니다.\n' + err.message);
+    }
+  };
+  fr.onerror = () => alert('파일을 읽을 수 없습니다.');
+  fr.readAsArrayBuffer(f);
+}
+
+/* ---------------- 옵션 버튼 ---------------- */
+function bindGroup(id, apply){
+  const grp = document.getElementById(id);
+  grp.addEventListener('click', e => {
+    const btn = e.target.closest('.opt'); if (!btn) return;
+    grp.querySelectorAll('.opt').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    apply(btn.dataset.v);
+    render();
+  });
+}
+bindGroup('grpSup', v => S.sup = parseFloat(v));
+bindGroup('grpMat', v => S.matFee = parseFloat(v));
+bindGroup('grpQ',   v => S.layer = parseFloat(v).toFixed(2));
+
+/* ---------------- 수동 입력 ---------------- */
+document.getElementById('mMin').addEventListener('input', e => {
+  S.manMin = parseFloat(e.target.value); render();
+});
+document.getElementById('mG').addEventListener('input', e => {
+  S.manG = parseFloat(e.target.value); render();
+});
+
+render();
+</script>
+</body>
+</html>

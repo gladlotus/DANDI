@@ -1,0 +1,5 @@
+.claude/
+settings.json
+*.stl
+Thumbs.db
+.DS_Store
